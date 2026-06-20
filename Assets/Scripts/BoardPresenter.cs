@@ -12,6 +12,7 @@ public class BoardPresenter : MonoBehaviour
     [SerializeField, Min(0f)] private float _tileSpacing;
 
     private Board _board;
+    private BoardRevealHelper _boardRevealHelper;
     private Transform _tilesContainer;
     private readonly List<TileView> _tileViews = new();
 
@@ -64,7 +65,33 @@ public class BoardPresenter : MonoBehaviour
             return false;
         }
 
+        _boardRevealHelper = new BoardRevealHelper(_board);
         return true;
+    }
+
+    private void OnTileClicked(TileView tileView)
+    {
+        var result = _boardRevealHelper.Reveal(tileView.Col, tileView.Row);
+        if (!result.Success)
+        {
+            return;
+        }
+
+        ApplyRevealResult(result);
+    }
+
+    private void ApplyRevealResult(RevealResult result)
+    {
+        foreach (var cell in result.OpenedCells)
+        {
+            _tileViews[GetTileIndex(cell.Col, cell.Row)]
+                .ShowRevealed(cell.NeighborMines, cell.IsMine);
+        }
+    }
+
+    private int GetTileIndex(int col, int row)
+    {
+        return row * _levelConfig.Cols + col;
     }
 
     private void OnDestroy()
@@ -106,7 +133,13 @@ public class BoardPresenter : MonoBehaviour
                 );
 
                 var tileView = Instantiate(_tileViewPrefab, position, Quaternion.identity, _tilesContainer);
-                tileView.Init(cellSize, _tileSprite);
+                if (!tileView.Init(col, row, cellSize, _tileSprite))
+                {
+                    Destroy(tileView.gameObject);
+                    continue;
+                }
+
+                tileView.EventClick += OnTileClicked;
                 _tileViews.Add(tileView);
             }
         }
@@ -167,6 +200,7 @@ public class BoardPresenter : MonoBehaviour
         {
             if (_tileViews[i] != null)
             {
+                _tileViews[i].EventClick -= OnTileClicked;
                 Destroy(_tileViews[i].gameObject);
             }
         }

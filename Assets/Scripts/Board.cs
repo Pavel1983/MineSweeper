@@ -3,9 +3,15 @@ using UnityEngine;
 
 public class Board
 {
+    private class TileInfo
+    {
+        public bool Revealed;
+        public bool HasMine;
+    }
+    
     private int _cols;
     private int _rows;
-    private bool[] _data;
+    private TileInfo[] _data;
     private int _minesCount;
 
     private List<Vector2Int> _cachedAvailablePositions;
@@ -21,9 +27,12 @@ public class Board
             return false;
         }
 
-        _data = new bool [_cols * _rows];
-        
-        // Generate 
+        _data = new TileInfo[_cols * _rows];
+        for (var i = 0; i < _data.Length; i++)
+        {
+            _data[i] = new TileInfo();
+        }
+
         _cachedAvailablePositions = new(_cols * rows);
         for (var c = 0; c < _cols; ++c)
         for (var r = 0; r < _rows; ++r)
@@ -39,7 +48,7 @@ public class Board
             _cachedAvailablePositions.RemoveAt(availablePosIndex);
 
             var posIndex = pos.y * _cols + pos.x;
-            _data[posIndex] = true;
+            _data[posIndex].HasMine = true;
 
             minesProcessed++;
         }
@@ -47,28 +56,96 @@ public class Board
         return true;
     }
 
+    public int Cols => _cols;
+    public int Rows => _rows;
+
+    public bool IsInBounds(int col, int row)
+    {
+        return TryGetTileIndex(col, row, out _);
+    }
+
+    public bool IsMine(int col, int row)
+    {
+        return TryGetTileIndex(col, row, out var index) && _data[index].HasMine;
+    }
+
+    public bool IsRevealed(int col, int row)
+    {
+        return TryGetTileIndex(col, row, out var index) && _data[index].Revealed;
+    }
+
+    public bool TryRevealCell(int col, int row)
+    {
+        if (!TryGetTileIndex(col, row, out var index) || _data[index].Revealed)
+        {
+            return false;
+        }
+
+        _data[index].Revealed = true;
+        return true;
+    }
+
+    public int GetNeighborMineCount(int col, int row)
+    {
+        if (!TryGetTileIndex(col, row, out _))
+        {
+            return -1;
+        }
+
+        var count = 0;
+        for (var dCol = -1; dCol <= 1; dCol++)
+        {
+            for (var dRow = -1; dRow <= 1; dRow++)
+            {
+                if (dCol == 0 && dRow == 0)
+                {
+                    continue;
+                }
+
+                if (IsMine(col + dCol, row + dRow))
+                {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
     public bool IsThereMineAtPos(int x, int y)
     {
         var posIndex = y * _cols + x;
 
-        return _data[posIndex];
+        return _data[posIndex].HasMine;
     }
 
     public void ResetupTheMine(Vector2Int minePos)
     {
         // removing old mine
         var minePosIndex = minePos.y * _cols + minePos.x;
-        _data[minePosIndex] = false;
+        _data[minePosIndex].HasMine = false;
         
         // setup new mine
         var mineIndex = Random.Range(0, _cachedAvailablePositions.Count);
         var newMinePos = _cachedAvailablePositions[mineIndex];
         var newMinePosIndex = newMinePos.y * _cols + newMinePos.x;
-        _data[newMinePosIndex] = true;
+        _data[newMinePosIndex].HasMine = true;
         
         // adjusting available positions cache
         _cachedAvailablePositions.RemoveAt(newMinePosIndex);
         _cachedAvailablePositions.Add(minePos);
+    }
+
+    private bool TryGetTileIndex(int col, int row, out int index)
+    {
+        if (_data == null || col < 0 || col >= _cols || row < 0 || row >= _rows)
+        {
+            index = -1;
+            return false;
+        }
+
+        index = row * _cols + col;
+        return true;
     }
 
     private bool IsValid()

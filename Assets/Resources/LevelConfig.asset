@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cce444bd889b34af59e1f04480552670, type: 3}
   m_Name: LevelConfig
   m_EditorClassIdentifier: 
-  Cols: 0
-  Rows: 0
-  MinesCount: 0
-  TimeMax: 0
+  Cols: 5
+  Rows: 10
+  MinesCount: 10
+  TimeMaxSeconds: 60
