@@ -6,18 +6,20 @@ using UnityEngine.EventSystems;
 public class TileView : MonoBehaviour, IPointerClickHandler
 {
     private const float LocalTileSize = 1f;
-    private const float MineFillRatio = 0.65f;
+    private const float OverlayFillRatio = 0.65f;
 
     public event Action<TileView> EventClick;
 
     public int Col { get; private set; }
     public int Row { get; private set; }
+    public bool IsFlagged { get; private set; }
 
     [SerializeField] private Color _hiddenColor;
     [SerializeField] private Color _revealedColor;
     [SerializeField] private Color _mineColor = new(0.9f, 0.2f, 0.2f, 1f);
     [SerializeField] private SpriteRenderer _renderer;
     [SerializeField] private SpriteRenderer _mineRenderer;
+    [SerializeField] private SpriteRenderer _flagRenderer;
     [SerializeField] private TextMeshPro _label;
     [SerializeField] private BoxCollider2D _collider;
 
@@ -38,6 +40,18 @@ public class TileView : MonoBehaviour, IPointerClickHandler
         if (_mineRenderer.sprite == null)
         {
             Debug.LogError("TileView: mine sprite is not set up.");
+            return false;
+        }
+
+        if (_flagRenderer == null)
+        {
+            Debug.LogError("TileView: _flagRenderer is not set up.");
+            return false;
+        }
+
+        if (_flagRenderer.sprite == null)
+        {
+            Debug.LogError("TileView: flag sprite is not set up.");
             return false;
         }
 
@@ -68,7 +82,8 @@ public class TileView : MonoBehaviour, IPointerClickHandler
         if (spriteSize > 0f)
         {
             _renderer.transform.localScale = Vector3.one * (LocalTileSize / spriteSize);
-            FitMineSprite(spriteSize);
+            FitOverlaySprite(_mineRenderer, spriteSize);
+            FitOverlaySprite(_flagRenderer, spriteSize);
         }
 
         transform.localScale = new Vector3(worldSize, worldSize, 1f);
@@ -82,6 +97,7 @@ public class TileView : MonoBehaviour, IPointerClickHandler
     {
         _renderer.color = _hiddenColor;
         SetMineVisible(false);
+        SetFlagged(false);
         SetLabel(string.Empty);
     }
 
@@ -91,18 +107,30 @@ public class TileView : MonoBehaviour, IPointerClickHandler
 
         _renderer.color = isMine ? _mineColor : _revealedColor;
         SetMineVisible(isMine);
+        SetFlagged(false);
         SetLabel(isMine || neighborMines <= 0 ? string.Empty : neighborMines.ToString());
+    }
+
+    public void SetFlagged(bool flagged)
+    {
+        IsFlagged = flagged;
+        _flagRenderer.gameObject.SetActive(flagged);
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        if (eventData.button != PointerEventData.InputButton.Left || IsFlagged)
+        {
+            return;
+        }
+
         EventClick?.Invoke(this);
     }
 
-    private void FitMineSprite(float backgroundSpriteSize)
+    private void FitOverlaySprite(SpriteRenderer renderer, float backgroundSpriteSize)
     {
-        var mineSpriteSize = _mineRenderer.sprite.bounds.size.x;
-        _mineRenderer.transform.localScale = Vector3.one * (MineFillRatio * backgroundSpriteSize / mineSpriteSize);
+        var overlaySpriteSize = renderer.sprite.bounds.size.x;
+        renderer.transform.localScale = Vector3.one * (OverlayFillRatio * backgroundSpriteSize / overlaySpriteSize);
     }
 
     private void SetMineVisible(bool visible)

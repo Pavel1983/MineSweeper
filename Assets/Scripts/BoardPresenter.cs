@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using FastMerger.Game.View;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class BoardPresenter : MonoBehaviour
 {
@@ -69,6 +70,30 @@ public class BoardPresenter : MonoBehaviour
         return true;
     }
 
+    private void Update()
+    {
+        if (_board == null || Mouse.current == null || !Mouse.current.rightButton.wasPressedThisFrame)
+        {
+            return;
+        }
+
+        var camera = _boardViewport.TargetCamera;
+        if (camera == null)
+        {
+            Debug.LogError("BoardPresenter: camera is not set up.");
+            return;
+        }
+
+        var ray = camera.ScreenPointToRay(Mouse.current.position.ReadValue());
+        var hit = Physics2D.GetRayIntersection(ray);
+        if (hit.collider == null || !hit.collider.TryGetComponent(out TileView tileView))
+        {
+            return;
+        }
+
+        OnTileFlagClicked(tileView);
+    }
+
     private void OnTileClicked(TileView tileView)
     {
         var result = _boardRevealHelper.Reveal(tileView.Col, tileView.Row);
@@ -78,6 +103,16 @@ public class BoardPresenter : MonoBehaviour
         }
 
         ApplyRevealResult(result);
+    }
+
+    private void OnTileFlagClicked(TileView tileView)
+    {
+        if (!_board.TryToggleFlag(tileView.Col, tileView.Row))
+        {
+            return;
+        }
+
+        tileView.SetFlagged(_board.IsFlagged(tileView.Col, tileView.Row));
     }
 
     private void ApplyRevealResult(RevealResult result)

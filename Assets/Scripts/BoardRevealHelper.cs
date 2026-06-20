@@ -13,7 +13,7 @@ public class BoardRevealHelper
 
     public RevealResult Reveal(int col, int row)
     {
-        if (!_board.IsInBounds(col, row) || _board.IsRevealed(col, row))
+        if (!_board.IsInBounds(col, row) || _board.IsRevealed(col, row) || _board.IsFlagged(col, row))
         {
             return RevealResult.Failed;
         }
@@ -46,7 +46,7 @@ public class BoardRevealHelper
         {
             var (col, row) = _pendingCells.Dequeue();
 
-            if (_board.IsRevealed(col, row) || _board.IsMine(col, row))
+            if (_board.IsRevealed(col, row) || _board.IsMine(col, row) || _board.IsFlagged(col, row))
             {
                 continue;
             }
@@ -84,6 +84,7 @@ public class BoardRevealHelper
 
                 if (!_board.IsInBounds(neighborCol, neighborRow)
                     || _board.IsRevealed(neighborCol, neighborRow)
+                    || _board.IsFlagged(neighborCol, neighborRow)
                     || _board.IsMine(neighborCol, neighborRow))
                 {
                     continue;

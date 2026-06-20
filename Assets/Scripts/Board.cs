@@ -6,6 +6,7 @@ public class Board
     private class TileInfo
     {
         public bool Revealed;
+        public bool Flagged;
         public bool HasMine;
     }
     
@@ -72,6 +73,22 @@ public class Board
     public bool IsRevealed(int col, int row)
     {
         return TryGetTileIndex(col, row, out var index) && _data[index].Revealed;
+    }
+
+    public bool IsFlagged(int col, int row)
+    {
+        return TryGetTileIndex(col, row, out var index) && _data[index].Flagged;
+    }
+
+    public bool TryToggleFlag(int col, int row)
+    {
+        if (!TryGetTileIndex(col, row, out var index) || _data[index].Revealed)
+        {
+            return false;
+        }
+
+        _data[index].Flagged = !_data[index].Flagged;
+        return true;
     }
 
     public bool TryRevealCell(int col, int row)
