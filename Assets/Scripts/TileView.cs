@@ -13,6 +13,7 @@ public class TileView : MonoBehaviour, IPointerClickHandler
     public int Col { get; private set; }
     public int Row { get; private set; }
     public bool IsFlagged { get; private set; }
+    public bool IsInteractable { get; private set; } = true;
 
     [SerializeField] private Color _hiddenColor;
     [SerializeField] private Color _revealedColor;
@@ -89,8 +90,15 @@ public class TileView : MonoBehaviour, IPointerClickHandler
         transform.localScale = new Vector3(worldSize, worldSize, 1f);
         _collider.size = Vector2.one * LocalTileSize;
 
+        SetInteractable(true);
         ShowHidden();
         return true;
+    }
+
+    public void SetInteractable(bool interactable)
+    {
+        IsInteractable = interactable;
+        _collider.enabled = interactable;
     }
 
     public void ShowHidden()
@@ -101,11 +109,11 @@ public class TileView : MonoBehaviour, IPointerClickHandler
         SetLabel(string.Empty);
     }
 
-    public void ShowRevealed(int neighborMines, bool isMine)
+    public void ShowRevealed(int neighborMines, bool isMine, bool isTriggeredMine = false)
     {
         gameObject.name = "tile_revealed";
 
-        _renderer.color = isMine ? _mineColor : _revealedColor;
+        _renderer.color = isTriggeredMine ? _mineColor : _revealedColor;
         SetMineVisible(isMine);
         SetFlagged(false);
         SetLabel(isMine || neighborMines <= 0 ? string.Empty : neighborMines.ToString());
@@ -119,7 +127,7 @@ public class TileView : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (eventData.button != PointerEventData.InputButton.Left || IsFlagged)
+        if (!IsInteractable || eventData.button != PointerEventData.InputButton.Left || IsFlagged)
         {
             return;
         }

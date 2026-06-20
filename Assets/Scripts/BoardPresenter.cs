@@ -3,58 +3,95 @@ using FastMerger.Game.View;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class BoardPresenter : MonoBehaviour
+public class BoardPresenter
 {
-    [SerializeField] private LevelConfig _levelConfig;
-    [SerializeField] private BoardViewport _boardViewport;
-    [SerializeField] private TileView _tileViewPrefab;
-    [SerializeField] private Sprite _tileSprite;
-    [SerializeField] private Transform _tilesRoot;
-    [SerializeField, Min(0f)] private float _tileSpacing;
+    private enum GameState
+    {
+        Playing,
+        Won,
+        Lost
+    }
+
+    private readonly LevelConfig _levelConfig;
+    private readonly BoardViewport _boardViewport;
+    private readonly TileView _tileViewPrefab;
+    private readonly Sprite _tileSprite;
+    private readonly Transform _tilesRoot;
+    private readonly float _tileSpacing;
 
     private Board _board;
     private BoardRevealHelper _boardRevealHelper;
-    private Transform _tilesContainer;
+    private IBoardHud _hud;
+    private GameState _gameState = GameState.Playing;
+    private bool _isTimerRunning;
+    private float _elapsedSeconds;
     private readonly List<TileView> _tileViews = new();
 
-    private void Start()
+    public int MinesCount => _levelConfig.MinesCount;
+
+    public BoardPresenter(
+        LevelConfig levelConfig,
+        BoardViewport boardViewport,
+        TileView tileViewPrefab,
+        Sprite tileSprite,
+        Transform tilesRoot,
+        float tileSpacing)
     {
-        if (!TryValidateSetup() || !TryInitBoard())
+        _levelConfig = levelConfig;
+        _boardViewport = boardViewport;
+        _tileViewPrefab = tileViewPrefab;
+        _tileSprite = tileSprite;
+        _tilesRoot = tilesRoot;
+        _tileSpacing = tileSpacing;
+
+        _boardViewport.BoundsChanged += RebuildTiles;
+    }
+
+    public void Dispose()
+    {
+        _boardViewport.BoundsChanged -= RebuildTiles;
+        ClearTiles();
+        _hud = null;
+    }
+
+    public void Tick()
+    {
+        UpdateTimer();
+        HandleFlagInput();
+    }
+
+    public void BindHud(IBoardHud hud)
+    {
+        _hud = hud;
+    }
+
+    public void ClearHud()
+    {
+        _hud = null;
+    }
+
+    public void SyncHud()
+    {
+        if (_board == null)
         {
             return;
         }
 
-        _boardViewport.BoundsChanged += RebuildTiles;
-        RebuildTiles();
+        _hud?.ResetHud(MinesCount);
+        _hud?.UpdateFlaggedCount(_board.GetFlaggedCount());
+        _hud?.UpdateElapsedTime(_elapsedSeconds);
     }
 
-    private bool TryValidateSetup()
+    public void RestartGame()
     {
-        if (_levelConfig == null)
+        if (!TryInitBoard())
         {
-            Debug.LogError("LevelConfig is not set up.");
-            return false;
+            return;
         }
 
-        if (_boardViewport == null)
-        {
-            Debug.LogError("BoardViewport is not set up.");
-            return false;
-        }
-
-        if (_tileViewPrefab == null)
-        {
-            Debug.LogError("TileView prefab is not set up.");
-            return false;
-        }
-
-        if (_tileSprite == null)
-        {
-            Debug.LogError("Tile sprite is not set up.");
-            return false;
-        }
-
-        return true;
+        _elapsedSeconds = 0f;
+        _isTimerRunning = false;
+        RebuildTiles();
     }
 
     private bool TryInitBoard()
@@ -67,12 +104,16 @@ public class BoardPresenter : MonoBehaviour
         }
 
         _boardRevealHelper = new BoardRevealHelper(_board);
+        _gameState = GameState.Playing;
         return true;
     }
 
-    private void Update()
+    private void HandleFlagInput()
     {
-        if (_board == null || Mouse.current == null || !Mouse.current.rightButton.wasPressedThisFrame)
+        if (_gameState != GameState.Playing
+            || _board == null
+            || Mouse.current == null
+            || !Mouse.current.rightButton.wasPressedThisFrame)
         {
             return;
         }
@@ -94,33 +135,128 @@ public class BoardPresenter : MonoBehaviour
         OnTileFlagClicked(tileView);
     }
 
+    private void UpdateTimer()
+    {
+        if (!_isTimerRunning)
+        {
+            return;
+        }
+
+        _elapsedSeconds += Time.deltaTime;
+        _hud?.UpdateElapsedTime(_elapsedSeconds);
+    }
+
     private void OnTileClicked(TileView tileView)
     {
+        if (_gameState != GameState.Playing)
+        {
+            return;
+        }
+
         var result = _boardRevealHelper.Reveal(tileView.Col, tileView.Row);
         if (!result.Success)
         {
             return;
         }
 
+        NotifyFirstUserAction();
         ApplyRevealResult(result);
+
+        if (result.HitMine)
+        {
+            _gameState = GameState.Lost;
+            Debug.Log("You lose!");
+            RevealRemainingMines(tileView.Col, tileView.Row);
+            SetBoardInteractable(false);
+            StopTimer();
+            return;
+        }
+
+        TryHandleWin();
     }
 
     private void OnTileFlagClicked(TileView tileView)
     {
-        if (!_board.TryToggleFlag(tileView.Col, tileView.Row))
+        if (_gameState != GameState.Playing || !_board.TryToggleFlag(tileView.Col, tileView.Row))
         {
             return;
         }
 
+        NotifyFirstUserAction();
         tileView.SetFlagged(_board.IsFlagged(tileView.Col, tileView.Row));
+        UpdateFlagView();
+        TryHandleWin();
+    }
+
+    private void TryHandleWin()
+    {
+        if (!_board.IsWin())
+        {
+            return;
+        }
+
+        _gameState = GameState.Won;
+        Debug.Log("You win!");
+        StopTimer();
+    }
+
+    private void NotifyFirstUserAction()
+    {
+        if (_isTimerRunning)
+        {
+            return;
+        }
+
+        _isTimerRunning = true;
+    }
+
+    private void StopTimer()
+    {
+        _isTimerRunning = false;
+    }
+
+    private void UpdateFlagView()
+    {
+        _hud?.UpdateFlaggedCount(_board.GetFlaggedCount());
+    }
+
+    private void ResetHud()
+    {
+        _hud?.ResetHud(MinesCount);
     }
 
     private void ApplyRevealResult(RevealResult result)
     {
         foreach (var cell in result.OpenedCells)
         {
+            var isTriggeredMine = result.HitMine && cell.IsMine;
             _tileViews[GetTileIndex(cell.Col, cell.Row)]
-                .ShowRevealed(cell.NeighborMines, cell.IsMine);
+                .ShowRevealed(cell.NeighborMines, cell.IsMine, isTriggeredMine);
+        }
+    }
+
+    private void RevealRemainingMines(int triggeredCol, int triggeredRow)
+    {
+        var cols = _levelConfig.Cols;
+        var rows = _levelConfig.Rows;
+
+        for (var row = 0; row < rows; row++)
+        {
+            for (var col = 0; col < cols; col++)
+            {
+                if (!_board.IsMine(col, row) || (col == triggeredCol && row == triggeredRow))
+                {
+                    continue;
+                }
+
+                if (_board.IsRevealed(col, row))
+                {
+                    continue;
+                }
+
+                _board.TryRevealCell(col, row);
+                _tileViews[GetTileIndex(col, row)].ShowRevealed(0, isMine: true);
+            }
         }
     }
 
@@ -129,17 +265,19 @@ public class BoardPresenter : MonoBehaviour
         return row * _levelConfig.Cols + col;
     }
 
-    private void OnDestroy()
+    private void SetBoardInteractable(bool interactable)
     {
-        if (_boardViewport != null)
+        for (var i = 0; i < _tileViews.Count; i++)
         {
-            _boardViewport.BoundsChanged -= RebuildTiles;
+            _tileViews[i].SetInteractable(interactable);
         }
     }
 
     private void RebuildTiles()
     {
         ClearTiles();
+        _gameState = GameState.Playing;
+        ResetHud();
 
         var cols = _levelConfig.Cols;
         var rows = _levelConfig.Rows;
@@ -155,7 +293,6 @@ public class BoardPresenter : MonoBehaviour
         }
 
         var pitch = cellSize + _tileSpacing;
-        EnsureTilesContainer();
 
         for (var row = 0; row < rows; row++)
         {
@@ -167,10 +304,10 @@ public class BoardPresenter : MonoBehaviour
                     0f
                 );
 
-                var tileView = Instantiate(_tileViewPrefab, position, Quaternion.identity, _tilesContainer);
+                var tileView = Object.Instantiate(_tileViewPrefab, position, Quaternion.identity, _tilesRoot);
                 if (!tileView.Init(col, row, cellSize, _tileSprite))
                 {
-                    Destroy(tileView.gameObject);
+                    Object.Destroy(tileView.gameObject);
                     continue;
                 }
 
@@ -178,6 +315,8 @@ public class BoardPresenter : MonoBehaviour
                 _tileViews.Add(tileView);
             }
         }
+
+        SetBoardInteractable(true);
     }
 
     private bool TryGetViewportBounds(int cols, int rows, out Bounds bounds)
@@ -212,23 +351,6 @@ public class BoardPresenter : MonoBehaviour
         return true;
     }
 
-    private void EnsureTilesContainer()
-    {
-        if (_tilesRoot != null)
-        {
-            _tilesContainer = _tilesRoot;
-            return;
-        }
-
-        if (_tilesContainer == null)
-        {
-            var containerObject = new GameObject("Tiles");
-            containerObject.transform.SetParent(transform, worldPositionStays: false);
-            containerObject.transform.localPosition = Vector3.zero;
-            _tilesContainer = containerObject.transform;
-        }
-    }
-
     private void ClearTiles()
     {
         for (var i = 0; i < _tileViews.Count; i++)
@@ -236,7 +358,7 @@ public class BoardPresenter : MonoBehaviour
             if (_tileViews[i] != null)
             {
                 _tileViews[i].EventClick -= OnTileClicked;
-                Destroy(_tileViews[i].gameObject);
+                Object.Destroy(_tileViews[i].gameObject);
             }
         }
 

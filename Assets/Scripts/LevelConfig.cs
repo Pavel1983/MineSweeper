@@ -9,6 +9,4 @@ public class LevelConfig : ScriptableObject
     public int Rows;
     [Min(1)]
     public int MinesCount;
-    [Min(10)]
-    public float TimeMaxSeconds;
 }

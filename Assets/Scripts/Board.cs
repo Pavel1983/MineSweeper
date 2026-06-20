@@ -59,6 +59,26 @@ public class Board
 
     public int Cols => _cols;
     public int Rows => _rows;
+    public int MinesCount => _minesCount;
+
+    public int GetFlaggedCount()
+    {
+        if (_data == null)
+        {
+            return 0;
+        }
+
+        var count = 0;
+        for (var i = 0; i < _data.Length; i++)
+        {
+            if (_data[i].Flagged)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
 
     public bool IsInBounds(int col, int row)
     {
@@ -78,6 +98,30 @@ public class Board
     public bool IsFlagged(int col, int row)
     {
         return TryGetTileIndex(col, row, out var index) && _data[index].Flagged;
+    }
+
+    public bool IsWin()
+    {
+        if (_data == null)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < _data.Length; i++)
+        {
+            var tile = _data[i];
+            if (tile.Flagged && !tile.HasMine)
+            {
+                return false;
+            }
+
+            if (!tile.HasMine && !tile.Revealed)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public bool TryToggleFlag(int col, int row)

@@ -9,9 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cce444bd889b34af59e1f04480552670, type: 3}
-  m_Name: LevelConfig
+  m_Script: {fileID: 11500000, guid: 55476638ddf494965865bc302380de7a, type: 3}
+  m_Name: ScreensRegistry
   m_EditorClassIdentifier: 
-  Cols: 5
-  Rows: 10
-  MinesCount: 10
+  _screens: []
