@@ -30,6 +30,7 @@ public class BoardPresenter
     private BoardRevealHelper _boardRevealHelper;
     private GameState _gameState = GameState.Playing;
     private bool _isTimerRunning;
+    private bool _isFirstReveal = true;
     private float _elapsedSeconds;
     private readonly List<TileView> _tileViews = new();
 
@@ -90,6 +91,7 @@ public class BoardPresenter
 
         _boardRevealHelper = new BoardRevealHelper(_board);
         _gameState = GameState.Playing;
+        _isFirstReveal = true;
         return true;
     }
 
@@ -136,6 +138,12 @@ public class BoardPresenter
         if (_gameState != GameState.Playing)
         {
             return;
+        }
+
+        if (_isFirstReveal)
+        {
+            _board.EnsureFirstClickIsSafe(tileView.Col, tileView.Row);
+            _isFirstReveal = false;
         }
 
         var result = _boardRevealHelper.Reveal(tileView.Col, tileView.Row);

@@ -16,6 +16,10 @@ public class Board
     private int _minesCount;
 
     private List<Vector2Int> _cachedAvailablePositions;
+    public int Cols => _cols;
+    public int Rows => _rows;
+    public int MinesCount => _minesCount;
+    
     
     public bool TryInit(int cols, int rows, int minesCount)
     {
@@ -56,10 +60,6 @@ public class Board
 
         return true;
     }
-
-    public int Cols => _cols;
-    public int Rows => _rows;
-    public int MinesCount => _minesCount;
 
     public int GetFlaggedCount()
     {
@@ -182,19 +182,29 @@ public class Board
 
     public void ResetupTheMine(Vector2Int minePos)
     {
-        // removing old mine
         var minePosIndex = minePos.y * _cols + minePos.x;
         _data[minePosIndex].HasMine = false;
-        
-        // setup new mine
+
         var mineIndex = Random.Range(0, _cachedAvailablePositions.Count);
         var newMinePos = _cachedAvailablePositions[mineIndex];
         var newMinePosIndex = newMinePos.y * _cols + newMinePos.x;
         _data[newMinePosIndex].HasMine = true;
-        
-        // adjusting available positions cache
-        _cachedAvailablePositions.RemoveAt(newMinePosIndex);
+
+        _cachedAvailablePositions.RemoveAt(mineIndex);
         _cachedAvailablePositions.Add(minePos);
+    }
+
+    public void EnsureFirstClickIsSafe(int col, int row)
+    {
+        if (!IsInBounds(col, row))
+        {
+            return;
+        }
+
+        while (IsMine(col, row))
+        {
+            ResetupTheMine(new Vector2Int(col, row));
+        }
     }
 
     private bool TryGetTileIndex(int col, int row, out int index)
