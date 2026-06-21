@@ -26,6 +26,7 @@ public class BoardPresenter
     private readonly float _tileSpacing;
     private readonly GameTimer _gameTimer;
     private readonly BoardInputHandler _inputHandler;
+    private readonly WinCondition _winCondition = new();
 
     private Board _board;
     private BoardRevealHelper _boardRevealHelper;
@@ -155,7 +156,7 @@ public class BoardPresenter
 
     private void TryHandleWin()
     {
-        if (!_board.IsWin())
+        if (!_winCondition.IsMet(_board))
         {
             return;
         }

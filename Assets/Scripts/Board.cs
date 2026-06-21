@@ -100,30 +100,6 @@ public class Board
         return TryGetTileIndex(col, row, out var index) && _data[index].Flagged;
     }
 
-    public bool IsWin()
-    {
-        if (_data == null)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < _data.Length; i++)
-        {
-            var tile = _data[i];
-            if (tile.Flagged && !tile.HasMine)
-            {
-                return false;
-            }
-
-            if (!tile.HasMine && !tile.Revealed)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     public bool TryToggleFlag(int col, int row)
     {
         if (!TryGetTileIndex(col, row, out var index) || _data[index].Revealed)
