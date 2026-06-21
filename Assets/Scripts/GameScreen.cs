@@ -2,7 +2,7 @@ using FastMerger.Game.View;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class GameScreen : BaseScreen, IBoardHud
+public class GameScreen : BaseScreen
 {
     [SerializeField] private LevelConfig _levelConfig;
     [SerializeField] private BoardViewport _boardViewport;
@@ -15,6 +15,7 @@ public class GameScreen : BaseScreen, IBoardHud
 
     private BoardPresenter _boardPresenter;
     private GameObject _tilesRoot;
+    private bool _hasFocus = true;
 
     private void Awake()
     {
@@ -28,6 +29,11 @@ public class GameScreen : BaseScreen, IBoardHud
 
     private void Update()
     {
+        if (!_hasFocus)
+        {
+            return;
+        }
+
         _boardPresenter?.Tick();
     }
 
@@ -44,7 +50,10 @@ public class GameScreen : BaseScreen, IBoardHud
             _tileSpacing
         );
 
-        _boardPresenter.BindHud(this);
+        _boardPresenter.EventHudResetRequested += OnHudResetRequested;
+        _boardPresenter.EventFlaggedCountChanged += OnFlaggedCountChanged;
+        _boardPresenter.EventElapsedTimeChanged += OnElapsedTimeChanged;
+        _boardPresenter.EventGameFinished += OnGameFinished;
 
         if (userData is GameScreenUserData { ShouldRestart: true })
         {
@@ -52,14 +61,20 @@ public class GameScreen : BaseScreen, IBoardHud
             return;
         }
 
-        _boardPresenter.SyncHud();
+        SyncHud();
     }
 
     protected override void OnClose()
     {
-        _boardPresenter.ClearHud();
-        _boardPresenter.Dispose();
-        _boardPresenter = null;
+        if (_boardPresenter != null)
+        {
+            _boardPresenter.EventHudResetRequested -= OnHudResetRequested;
+            _boardPresenter.EventFlaggedCountChanged -= OnFlaggedCountChanged;
+            _boardPresenter.EventElapsedTimeChanged -= OnElapsedTimeChanged;
+            _boardPresenter.EventGameFinished -= OnGameFinished;
+            _boardPresenter.Dispose();
+            _boardPresenter = null;
+        }
 
         Destroy(_tilesRoot);
         _tilesRoot = null;
@@ -73,20 +88,46 @@ public class GameScreen : BaseScreen, IBoardHud
         }
     }
 
-    public void ResetHud(int minesCount)
+    protected override void OnFocusLost()
+    {
+        _hasFocus = false;
+    }
+
+    protected override void OnFocusGained()
+    {
+        _hasFocus = true;
+    }
+
+    private void SyncHud()
+    {
+        OnHudResetRequested(_boardPresenter.MinesCount);
+        OnFlaggedCountChanged(_boardPresenter.FlaggedCount);
+        OnElapsedTimeChanged(_boardPresenter.ElapsedSeconds);
+    }
+
+    private void OnHudResetRequested(int minesCount)
     {
         _flagView.Init(minesCount);
         _clockView.ResetView();
     }
 
-    public void UpdateFlaggedCount(int flaggedCount)
+    private void OnFlaggedCountChanged(int flaggedCount)
     {
         _flagView.SetFlaggedCount(flaggedCount);
     }
 
-    public void UpdateElapsedTime(float elapsedSeconds)
+    private void OnElapsedTimeChanged(float elapsedSeconds)
     {
         _clockView.SetTime(elapsedSeconds);
+    }
+
+    private void OnGameFinished(bool isWin, float elapsedSeconds)
+    {
+        Navigation.Push(ScreenIds.Results, new ResultsScreenUserData
+        {
+            IsWin = isWin,
+            ElapsedSeconds = elapsedSeconds
+        });
     }
 
     private void OnPauseClicked()

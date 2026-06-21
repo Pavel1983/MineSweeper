@@ -312,7 +312,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 672fab4c1c0d246a89e77950c215f899, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _hiddenColor: {r: 0.6792453, g: 0.6792453, b: 0.6792453, a: 1}
+  _hiddenColor: {r: 0.5660378, g: 0.5660378, b: 0.5660378, a: 1}
   _revealedColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   _mineColor: {r: 0.9, g: 0.2, b: 0.2, a: 1}
   _renderer: {fileID: 8389922825587310010}

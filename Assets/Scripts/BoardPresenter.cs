@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using FastMerger.Game.View;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Object = UnityEngine.Object;
 
 public class BoardPresenter
 {
@@ -12,6 +14,11 @@ public class BoardPresenter
         Lost
     }
 
+    public event Action<int> EventHudResetRequested;
+    public event Action<int> EventFlaggedCountChanged;
+    public event Action<float> EventElapsedTimeChanged;
+    public event Action<bool, float> EventGameFinished;
+
     private readonly LevelConfig _levelConfig;
     private readonly BoardViewport _boardViewport;
     private readonly TileView _tileViewPrefab;
@@ -21,13 +28,14 @@ public class BoardPresenter
 
     private Board _board;
     private BoardRevealHelper _boardRevealHelper;
-    private IBoardHud _hud;
     private GameState _gameState = GameState.Playing;
     private bool _isTimerRunning;
     private float _elapsedSeconds;
     private readonly List<TileView> _tileViews = new();
 
     public int MinesCount => _levelConfig.MinesCount;
+    public int FlaggedCount => _board?.GetFlaggedCount() ?? 0;
+    public float ElapsedSeconds => _elapsedSeconds;
 
     public BoardPresenter(
         LevelConfig levelConfig,
@@ -51,35 +59,12 @@ public class BoardPresenter
     {
         _boardViewport.BoundsChanged -= RebuildTiles;
         ClearTiles();
-        _hud = null;
     }
 
     public void Tick()
     {
         UpdateTimer();
         HandleFlagInput();
-    }
-
-    public void BindHud(IBoardHud hud)
-    {
-        _hud = hud;
-    }
-
-    public void ClearHud()
-    {
-        _hud = null;
-    }
-
-    public void SyncHud()
-    {
-        if (_board == null)
-        {
-            return;
-        }
-
-        _hud?.ResetHud(MinesCount);
-        _hud?.UpdateFlaggedCount(_board.GetFlaggedCount());
-        _hud?.UpdateElapsedTime(_elapsedSeconds);
     }
 
     public void RestartGame()
@@ -143,7 +128,7 @@ public class BoardPresenter
         }
 
         _elapsedSeconds += Time.deltaTime;
-        _hud?.UpdateElapsedTime(_elapsedSeconds);
+        EventElapsedTimeChanged?.Invoke(_elapsedSeconds);
     }
 
     private void OnTileClicked(TileView tileView)
@@ -165,10 +150,9 @@ public class BoardPresenter
         if (result.HitMine)
         {
             _gameState = GameState.Lost;
-            Debug.Log("You lose!");
             RevealRemainingMines(tileView.Col, tileView.Row);
             SetBoardInteractable(false);
-            StopTimer();
+            NotifyGameFinished(isWin: false);
             return;
         }
 
@@ -196,8 +180,13 @@ public class BoardPresenter
         }
 
         _gameState = GameState.Won;
-        Debug.Log("You win!");
+        NotifyGameFinished(isWin: true);
+    }
+
+    private void NotifyGameFinished(bool isWin)
+    {
         StopTimer();
+        EventGameFinished?.Invoke(isWin, _elapsedSeconds);
     }
 
     private void NotifyFirstUserAction()
@@ -217,12 +206,12 @@ public class BoardPresenter
 
     private void UpdateFlagView()
     {
-        _hud?.UpdateFlaggedCount(_board.GetFlaggedCount());
+        EventFlaggedCountChanged?.Invoke(_board.GetFlaggedCount());
     }
 
     private void ResetHud()
     {
-        _hud?.ResetHud(MinesCount);
+        EventHudResetRequested?.Invoke(MinesCount);
     }
 
     private void ApplyRevealResult(RevealResult result)

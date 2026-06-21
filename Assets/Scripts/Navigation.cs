@@ -25,7 +25,7 @@ public class Navigation : MonoBehaviour
 
         if (_currentScreen != null && _currentScreen.ScreenId == screenId)
         {
-            ShowScreen(_currentScreen);
+            NotifyFocusGained(_currentScreen);
             if (userData != null)
             {
                 _currentScreen.ApplyUserData(userData);
@@ -47,7 +47,7 @@ public class Navigation : MonoBehaviour
     {
         if (_currentScreen != null)
         {
-            HideScreen(_currentScreen);
+            NotifyFocusLost(_currentScreen);
             _stack.Push(_currentScreen);
         }
 
@@ -63,7 +63,7 @@ public class Navigation : MonoBehaviour
 
         DestroyScreen(_currentScreen);
         _currentScreen = _stack.Pop();
-        ShowScreen(_currentScreen);
+        NotifyFocusGained(_currentScreen);
         return true;
     }
 
@@ -80,14 +80,14 @@ public class Navigation : MonoBehaviour
         return screen;
     }
 
-    private static void HideScreen(BaseScreen screen)
+    private static void NotifyFocusLost(BaseScreen screen)
     {
-        screen.gameObject.SetActive(false);
+        screen?.NotifyFocusLost();
     }
 
-    private static void ShowScreen(BaseScreen screen)
+    private static void NotifyFocusGained(BaseScreen screen)
     {
-        screen.gameObject.SetActive(true);
+        screen?.NotifyFocusGained();
     }
 
     private static void DestroyScreen(BaseScreen screen)

@@ -24,6 +24,16 @@ public abstract class BaseScreen : MonoBehaviour
         OnApplyUserData(userData);
     }
 
+    internal void NotifyFocusLost()
+    {
+        OnFocusLost();
+    }
+
+    internal void NotifyFocusGained()
+    {
+        OnFocusGained();
+    }
+
     protected virtual void OnOpen(ScreenUserData userData)
     {
     }
@@ -33,6 +43,14 @@ public abstract class BaseScreen : MonoBehaviour
     }
 
     protected virtual void OnApplyUserData(ScreenUserData userData)
+    {
+    }
+
+    protected virtual void OnFocusLost()
+    {
+    }
+
+    protected virtual void OnFocusGained()
     {
     }
 }

@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cce444bd889b34af59e1f04480552670, type: 3}
   m_Name: LevelConfig
   m_EditorClassIdentifier: 
-  Cols: 5
+  Cols: 7
   Rows: 10
   MinesCount: 10
