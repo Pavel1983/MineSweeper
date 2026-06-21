@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using FastMerger.Game.View;
 using UnityEngine;
-using UnityEngine.InputSystem;
 using Object = UnityEngine.Object;
 
 public class BoardPresenter
@@ -25,18 +24,18 @@ public class BoardPresenter
     private readonly Sprite _tileSprite;
     private readonly Transform _tilesRoot;
     private readonly float _tileSpacing;
+    private readonly GameTimer _gameTimer;
+    private readonly BoardInputHandler _inputHandler;
 
     private Board _board;
     private BoardRevealHelper _boardRevealHelper;
     private GameState _gameState = GameState.Playing;
-    private bool _isTimerRunning;
     private bool _isFirstReveal = true;
-    private float _elapsedSeconds;
     private readonly List<TileView> _tileViews = new();
 
     public int MinesCount => _levelConfig.MinesCount;
     public int FlaggedCount => _board?.GetFlaggedCount() ?? 0;
-    public float ElapsedSeconds => _elapsedSeconds;
+    public float ElapsedSeconds => _gameTimer.ElapsedSeconds;
 
     public BoardPresenter(
         LevelConfig levelConfig,
@@ -53,19 +52,27 @@ public class BoardPresenter
         _tilesRoot = tilesRoot;
         _tileSpacing = tileSpacing;
 
+        _gameTimer = new GameTimer();
+        _gameTimer.ElapsedTimeChanged += OnElapsedTimeChanged;
+
+        _inputHandler = new BoardInputHandler(boardViewport);
+        _inputHandler.EventTileFlagClicked += OnTileFlagClicked;
+
         _boardViewport.BoundsChanged += RebuildTiles;
     }
 
     public void Dispose()
     {
         _boardViewport.BoundsChanged -= RebuildTiles;
+        _gameTimer.ElapsedTimeChanged -= OnElapsedTimeChanged;
+        _inputHandler.EventTileFlagClicked -= OnTileFlagClicked;
         ClearTiles();
     }
 
     public void Tick()
     {
-        UpdateTimer();
-        HandleFlagInput();
+        _gameTimer.Tick(Time.deltaTime);
+        _inputHandler.Tick(_gameState == GameState.Playing && _board != null);
     }
 
     public void RestartGame()
@@ -75,8 +82,7 @@ public class BoardPresenter
             return;
         }
 
-        _elapsedSeconds = 0f;
-        _isTimerRunning = false;
+        _gameTimer.Reset();
         RebuildTiles();
     }
 
@@ -95,42 +101,9 @@ public class BoardPresenter
         return true;
     }
 
-    private void HandleFlagInput()
+    private void OnElapsedTimeChanged(float elapsedSeconds)
     {
-        if (_gameState != GameState.Playing
-            || _board == null
-            || Mouse.current == null
-            || !Mouse.current.rightButton.wasPressedThisFrame)
-        {
-            return;
-        }
-
-        var camera = _boardViewport.TargetCamera;
-        if (camera == null)
-        {
-            Debug.LogError("BoardPresenter: camera is not set up.");
-            return;
-        }
-
-        var ray = camera.ScreenPointToRay(Mouse.current.position.ReadValue());
-        var hit = Physics2D.GetRayIntersection(ray);
-        if (hit.collider == null || !hit.collider.TryGetComponent(out TileView tileView))
-        {
-            return;
-        }
-
-        OnTileFlagClicked(tileView);
-    }
-
-    private void UpdateTimer()
-    {
-        if (!_isTimerRunning)
-        {
-            return;
-        }
-
-        _elapsedSeconds += Time.deltaTime;
-        EventElapsedTimeChanged?.Invoke(_elapsedSeconds);
+        EventElapsedTimeChanged?.Invoke(elapsedSeconds);
     }
 
     private void OnTileClicked(TileView tileView)
@@ -193,23 +166,18 @@ public class BoardPresenter
 
     private void NotifyGameFinished(bool isWin)
     {
-        StopTimer();
-        EventGameFinished?.Invoke(isWin, _elapsedSeconds);
+        _gameTimer.Stop();
+        EventGameFinished?.Invoke(isWin, _gameTimer.ElapsedSeconds);
     }
 
     private void NotifyFirstUserAction()
     {
-        if (_isTimerRunning)
+        if (_gameTimer.IsRunning)
         {
             return;
         }
 
-        _isTimerRunning = true;
-    }
-
-    private void StopTimer()
-    {
-        _isTimerRunning = false;
+        _gameTimer.Start();
     }
 
     private void UpdateFlagView()
@@ -259,7 +227,7 @@ public class BoardPresenter
 
     private int GetTileIndex(int col, int row)
     {
-        return row * _levelConfig.Cols + col;
+        return BoardLayout.GetTileIndex(_levelConfig.Cols, col, row);
     }
 
     private void SetBoardInteractable(bool interactable)
@@ -284,25 +252,18 @@ public class BoardPresenter
             return;
         }
 
-        if (!TryGetGridLayout(cols, rows, bounds, out var cellSize, out var origin))
+        if (!BoardLayout.TryCalculate(cols, rows, bounds, _tileSpacing, out var layout))
         {
             return;
         }
-
-        var pitch = cellSize + _tileSpacing;
 
         for (var row = 0; row < rows; row++)
         {
             for (var col = 0; col < cols; col++)
             {
-                var position = origin + new Vector3(
-                    col * pitch + cellSize * 0.5f,
-                    row * pitch + cellSize * 0.5f,
-                    0f
-                );
-
+                var position = BoardLayout.GetCellCenter(layout, col, row);
                 var tileView = Object.Instantiate(_tileViewPrefab, position, Quaternion.identity, _tilesRoot);
-                if (!tileView.Init(col, row, cellSize, _tileSprite))
+                if (!tileView.Init(col, row, layout.CellSize, _tileSprite))
                 {
                     Object.Destroy(tileView.gameObject);
                     continue;
@@ -324,27 +285,6 @@ public class BoardPresenter
             return false;
         }
 
-        return true;
-    }
-
-    private bool TryGetGridLayout(int cols, int rows, Bounds bounds, out float cellSize, out Vector3 origin)
-    {
-        var spacing = _tileSpacing;
-        var cellSizeX = (bounds.size.x - (cols - 1) * spacing) / cols;
-        var cellSizeY = (bounds.size.y - (rows - 1) * spacing) / rows;
-        cellSize = Mathf.Min(cellSizeX, cellSizeY);
-
-        if (cellSize <= 0f)
-        {
-            Debug.LogError("Tile spacing is too large for the board viewport.");
-            cellSize = 0f;
-            origin = default;
-            return false;
-        }
-
-        var gridWidth = cols * cellSize + (cols - 1) * spacing;
-        var gridHeight = rows * cellSize + (rows - 1) * spacing;
-        origin = bounds.center - new Vector3(gridWidth * 0.5f, gridHeight * 0.5f, 0f);
         return true;
     }
 
